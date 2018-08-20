@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Spam filter</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+  <link href="https://fonts.googleapis.com/css?family=Quicksand" rel="stylesheet">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+</head>
+
+<body style="margin:0 5%;font-family: 'Quicksand', sans-serif;background:#f4f6f7">
+  <div class="container-fluid">
+    <div class="row justify-content-md-center">
+      <div class="col-md-6 text-center">
+        <h2 style="text-align: center;margin-bottom: 0;color: #cecece">Email spam check</h2>
+		<p style="color: #cecece">Paste in the email body below. The machine will return the result, ratings and result set of which words were considered spam. Hover over them to see which tests the word failed.</p>
+      </div>
+    </div>
+	
+    <div class="row">
+      <div class="col-md-2">
+        <h3 style="text-align: center;margin-bottom: 0;color: #cecece">Spam status:</h3>
+        <h2 style="text-align: center;margin: 0;color:#e5e5e5" id="EmailResult">- - - -</h2>
+		  <div id="EmailResults" class="text-center mt-5" style="color: #a9a9a9">
+				<p style="color: #cecece">Test results will appear here when an email has been pasted in</p>
+		  </div>
+      </div>
+      <div class="col-md-8 text-center" id="EmailContainer">
+        <textarea  class="form-control" id="Email" style="resize: vertical;min-height:200px;width:100%;font-size: 14px" value=""></textarea>
+        <div class="table-bordered bg-white px-1" id="ResultContainer" style="font-size: 14px">
+        </div>
+      </div>
+    </div>
+    <div class="row mt-5  justify-content-md-center">
+      <div class="col-md-6 text-center" id="MachineLearningContainer">
+        <h2 style="text-align: center;margin-bottom: 0;color: #cecece">Machine learning</h2>
+		<p style="color: #cecece">Upload both spam and ham emails for the machine to analyze. This might take a while depending on the sample size. It will return test ratings for both and set up or update a list of keywords and phrases that are considered spam.</p>
+      </div>
+    </div>
+    <div class="row text-center">
+      <div class="col-md-6">
+        <h4 style="color: #cecece">Spam emails</</h4>
+        <div class="form-group" style="border: 1px dashed #ddd; margin-top: 10px; background: #fafafa">
+          <div style="height: 120px; display: table-row; text-align: center;">
+            <input data-target="#SpamEmails" name="Files" class="form-control" type="file" multiple="" style="position: absolute; opacity: 0;height: 120px; vertical-align: middle;cursor: pointer">
+            <div id="SpamEmails" style="display:table-cell ; vertical-align: middle; width: 820px;color:#aaa;height: 120px;">
+              <h4>Drag files here or click to browse</</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h4 style="color: #cecece">Ham emails</</h4>
+        <div class="form-group" style="border: 1px dashed #ddd; margin-top: 10px; background: #fafafa">
+          <div style="height: 120px; display: table-row; text-align: center;">
+            <input data-target="#HamEmails" name="Files" class="form-control" type="file" multiple="" style="position: absolute; opacity: 0;height: 120px; vertical-align: middle;cursor: pointer">
+            <div id="HamEmails" style="display:table-cell ; vertical-align: middle; width: 820px;color:#aaa;height: 120px;">
+              <h4>Drag files here or click to browse</</h4>
+			  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row text-center">
+		<div class="col-md-6 mt-3">
+		<p class="m-0 text-warning">SPAM Ratings</p>
+		</div>
+		<div class="col-md-6 mt-3">
+			<p class="m-0 text-info">HAM Ratings</p>
+		</div>
+    </div>
+    <div class="row text-center mb-5">
+		<div id="SpamEmailsRatings" class="col-md-6" style="color: #a9a9a9">
+		</div>
+		<div id="HamEmailsRatings" class="col-md-6" style="color: #a9a9a9">
+		</div>
+		<div class="col-md-6 mt-5">
+			<textarea class="form-control" id="SpamKeywordsArea"></textarea>
+		</div>
+		<div class="col-md-6 mt-5">
+			<textarea class="form-control" id="HamKeywordsArea"></textarea>
+		</div>
+    </div>
+  </div>
+</body>
+</html>
+
+<script>
+  $(document).ready(function () {
+	//Modifiers
+	var emailRating = 0;
+	var maxNegativeRatingForEmail = 0;
+	var emailResult = [];
+	var spamKeywords = [];
+	var hamKeywords = [];
+
+    //Text field edit listener
+    $(document).on("change", "#Email", function () {
+      const email = $("#Email").val();
+
+      var result = checkEmailQuality(email);
+		populateResultView(result);
+	  
+		$('html, body').animate({
+			scrollTop: $("#EmailResults").offset().top -120
+		}, 1000);
+    });
+
+    //Constants and checks basis
+    const allowedLetters = /[^\x00-\x7F]+/;
+    const urlRegex = /(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+/;
+    const consecutiveCharactersRegex = /([a-zA-Z0-9])\1{2,}/;
+    const shortUrlDomains = ["bit.ly", "6url.ru", "tinyurl.com", "ow.ly", "tiny.cc", "goo.gl", "migre.me", "t.co", "bit.do", "x.co"];
+    const suspiciousKeywords = ["membership", "%", "notification", "copy", "bonus", "share", "unsubscribe", "subscribe", "newsletter", "sign", "youre", "your", "you're"];
+    const maliciousKeywords = ["hot", "singles", "install", "troy", "troj", "virus", "spam", "wow", "omg", "lmao", "lol", "urgent", "nigeria", "fund", "jesus", "christ", "allah", "god", "cancer", "donate", "discount", "off", "vip", "save", "earn", "shipping", "hurry", "crazy", "0$", "$0", "million", "billion", "boss", "!!", "! !", "$", "£", "eur", "gbp", "dollar", "usd", "bank", "account", "terminal", "die", "deceased", "death", "casino", "free", "deposit", "label", "fedex", "statement", "8", "prince", "relative", "pay", "pal", "visa", "lotto", "lottery", "present", "gift", "special", "urgent", "important", "desperate", "post", "username", "password", "credit", "court", "notice", "submit", "register", "apply", "invoice", "document", "attach", "deliver", "ticket", "dhl", "irs", "fbi", "money", "cash", "fedex", "statement", "financ", "tax", "zip", "exe", "pif", "scr", "bat"];
+    const phrases = ["pay pal", "master card", "credit card", "click here", "get rich", "or die tryin", "easy money", "get money", "make money", "your funds", "your money", "% cheaper", "% off", "is this for real", "is there a catch", "why are we doing this", "the catch", "hurry up", "act now", "act fast", "last in stock", "today only", "only today"];
+    const commonEnglishWords = ["time","person","year","way","day","thing","man","world","life","hand","part","child","eye","woman","place","work","week","case","point","government","company","number","group","problem","fact","be","have","do","say","get","make","go","know","take","see","come","think","look","want","give","use","find","tell","ask","seem","feel","try","leave","call","good","new","first","last","long","great","little","own","other","old","right","big","high","different","small","large","next","early","young","important","few","public","bad","same","able","to","of","in","for","on","with","at","by","from","up","about","into","over","after","the","and","a","that","I","it","not","he","as","you","this","but","his","they","her","she","or","an","will","my","one","all","would","there","their"]
+	const currentCutOffs = [1.595,16.8,166.65,12.45,14.55,9.44,19.1,48.55,10.75,1];
+	var consecutiveWordCounter = 0;
+    var englishWords = [];
+    $.get('https://raw.githubusercontent.com/RPirso/SpamEmailDetector/master/UKdictionary.txt', function (data) {
+      englishWords = data.split('\r\n');
+    });
+
+    function resetVariables() {
+	  emailResult = [];
+      emailRating = 0;
+      maxNegativeRatingForEmail = 0;
+      $("#ResultContainer").empty();
+      $("#EmailResults").empty();
+    }
+
+    //Main method
+    function checkEmailQuality(email) {
+		resetVariables();
+		var wordsArray = email.split(/[\r\n\s]+/);
+		var scamPhrases = 0;
+		var testWordsCount = [[]];
+
+		var maliciousWeight = 100;
+		var suspiciousWeight = 30;
+		var doubtfulWeight = 10;
+
+		$.each(phrases, function (k, v) {
+			if (email.toLowerCase().indexOf(v) !== -1) {
+				  scamPhrases++;
+				  emailRating += maliciousWeight*10;
+			}
+		});
+		
+		wordsArray = removeCommonWords(wordsArray);
+		
+		for (var i = 0; i < wordsArray.length; i++) {
+			var wordRating = 0;
+			var wordLower = wordsArray[i].toLowerCase();
+			var previousWord = "";
+
+			if (i > 0)
+				previousWord = wordsArray[i - 1].toLowerCase();
+
+			//Miscellaneous checks
+			var testsArray = [
+				[checkForEnglishWords(wordLower), doubtfulWeight, "#f3d9f1", "English word check"],
+				[checkForCapsLock(wordsArray[i]), maliciousWeight, "#ede1ec", "Caps lock check"],
+				[checkIfArrayContains(wordLower, suspiciousKeywords), suspiciousWeight, "#cda5f3", "Suspicious keyword check"],
+				[checkIfArrayContains(wordLower, maliciousKeywords), maliciousWeight, "#f3a5a5", "Malicious keyword check"],
+				[checkForConsecutiveWords(wordLower, previousWord), suspiciousWeight, "#ede5ca", "Consecutive word check"],
+				[checkForUrls(wordLower), doubtfulWeight, "#f3e6b8", "Url check"],
+				[checkIfArrayContains(wordLower, shortUrlDomains), maliciousWeight, "#f3c0a5", "Short url check"],
+				[checkForConsecutiveCharacters(wordLower), doubtfulWeight, "#f7aef3", "Consecutive letter check"],
+				[checkForAllowedLetters(wordLower), maliciousWeight, "#f3cfbb", "Unallowed letter check"]
+			];
+
+			var highlightColor = "";
+			var failedTestIds = [];
+			var testResults = [];
+			var testHeadings = [];
+			
+			for (var j = 0; j < testsArray.length; j++) {
+				if(i === 0){
+					testHeadings.push(testsArray[j][3]); //Sets the headings
+					testResults.push(testsArray[j][0]); //Sets first values
+				}
+				else{
+					testWordsCount[1][j] += testsArray[j][0];
+				}
+				
+				maxNegativeRatingForEmail += testsArray[j][1];
+				wordRating += testsArray[j][0] * testsArray[j][1];
+
+				if (testsArray[j][0] > 0) {
+					highlightColor = testsArray[j][2];
+					failedTestIds.push(testsArray[j][3]);
+				}
+			}
+			
+			if(i === 0){
+				testWordsCount[0] = (testHeadings);
+				testWordsCount[1] = (testResults);
+			}
+			
+			emailRating += wordRating;
+			emailResult.push([wordsArray[i], highlightColor, wordRating, failedTestIds]);
+		}
+
+		<!-- scamPhrases -->
+		
+		testWordsCount[0].push("Scam phrases");
+		testWordsCount[1].push(scamPhrases);
+		
+		for (var i = 0; i < testWordsCount[1].length; i++) {
+			if(testWordsCount[1][i]>0) testWordsCount[1][i] = wordsArray.length/testWordsCount[1][i];
+		}
+			
+		return testWordsCount;
+		
+    }
+
+	//=================================//
+	//=== Populates the result view ===//
+	//=================================//
+    function populateResultView(result) {
+		var strikes = 0;
+		var maxStrikes = 0;
+		for (var i = 0; i < currentCutOffs.length; i++) {
+			if(result[1][i] > currentCutOffs[i]) strikes++;
+			maxStrikes++;
+		}
+		
+	
+		for (var i = 0; i < emailResult.length; i++) {
+			var failedTestsList = "";
+			for (var j = 0; j < emailResult[i][3].length; j++) {
+				failedTestsList += "<span class='badge badge-pill badge-danger' style='margin-bottom: 6px;font-weight: normal'>" + (j + 1) + ") " + emailResult[i][3][j] + "</span><br/>"
+			}
+			if (emailResult[i][3].length > 0)
+				$("#ResultContainer").append('<span name="ResultWord" style="background:' + emailResult[i][1] + '" data-toggle="tooltip" data-placement="top" data-html="true" title="' + failedTestsList + '">' + emailResult[i][0] + '</span> ');
+			else
+				$("#ResultContainer").append(emailResult[i][0] + " ");
+		}
+		
+		for(var i = 0; i < result[0].length; i++){
+			var textColor = "";
+			if(result[1][i] > parseFloat(currentCutOffs))
+				textColor = "text-danger"
+			
+			result[1][i] = (result[1][i]).toFixed(2); 
+			$("#EmailResults").append('<p class="m-0 ' + textColor +'">' + result[0][i] + ': ' + result[1][i] + '</p>');
+		}
+		
+		console.log(strikes);
+		console.log(maxStrikes/2);
+		
+		  if ((emailRating * 100 / maxNegativeRatingForEmail).toFixed(2) > 2.5 || (strikes > maxStrikes/2) ) {
+			$("#EmailResult").css("color", " #ea495f");
+			$("#EmailResult").text("TRUE");
+		  }
+		  else {
+			$("#EmailResult").css("color", "#64bb61");
+			$("#EmailResult").text("FALSE");
+		  }
+    }
+	
+    //Subfunctions
+    function checkForAllowedLetters(input) {
+      if (allowedLetters.test(input))
+        return 1;
+      else
+        return 0;
+    }
+
+    function checkForUrls(input) {
+      if (urlRegex.test(input))
+        return 1;
+      else
+        return 0;
+    }
+
+    function checkForConsecutiveCharacters(input) {
+      if (consecutiveCharactersRegex.test(input))
+        return 1;
+      else
+        return 0;
+    }
+
+    function checkForEnglishWords(input) {
+      if (englishWords.indexOf(input) < 0)
+        return 1;
+      else
+        return 0;
+    }
+
+    function checkForConsecutiveWords(input, previousWord) {
+      if (input === previousWord)
+        consecutiveWordCounter++;
+      else
+        consecutiveWordCounter = 0;
+
+      if (consecutiveWordCounter > 1)
+        return 1 * consecutiveWordCounter;
+      else
+        return 0;
+    }
+
+    function checkForCapsLock(input) {
+      var wordLetters = input.replace(/[^a-zA-Z]+/g, "");
+      var isAllUppercase = wordLetters.toUpperCase() === wordLetters && wordLetters.length > 1;
+      if (isAllUppercase)
+        return 1;
+      else
+        return 0;
+    }
+
+    function checkIfArrayContains(keyword, array) {
+      var containsKeyword = false;
+      for (var i = 0; i < array.length; i++) {
+        if (keyword.indexOf(array[i]) > -1)
+          containsKeyword = true;
+      }
+      if (containsKeyword) return 1;
+      else return 0;
+    }
+
+    function removeCommonWords(inputArray) {
+		return inputArray = inputArray.filter((word) => !commonEnglishWords.includes(word));
+    }
+
+    function populateSpamHamList(word, type) {
+		if(type===0)
+			spamKeywords.push(word);
+		else
+			hamKeywords.push(word);
+    }
+	
+    $("body").tooltip({
+      selector: '[data-toggle="tooltip"]'
+    });
+
+	//===========================================
+	//=== Spam/Ham email upload and work logic ==
+	//===========================================
+    if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
+      alert('File API is not supported by this browser');
+      return;
+    }
+	
+    $(document).on('change', '[name="Files"]', function () {
+	  var target = $(this).data("target");
+      $(target).empty();
+	  $(target).append('<img style="width:120px" src="' + loadingImage + '" alt="loading circle">');
+	  var ratingsMedian = [[],[],[],[]];
+      var files = $(this).prop("files");
+	  var counter = 0;
+      
+	  var populateResults;
+	  
+      for (var i = 0; i < files.length; i++) {
+			var reader = new FileReader();
+			
+			reader.onload = (function (file) {
+				return function (response) {
+					var result = checkEmailQuality(response.target.result);
+					
+					var fileWords = response.target.result.split(/[\r\n\s]+/);
+					for(var j = 0; j < fileWords.length ; j++){
+						var type = 0;
+						if(target === "#HamEmails") type = 1;
+						populateSpamHamList(fileWords[j], type);
+					}
+					
+					for(var j = 0; j < result[1].length; j++){
+						if (counter === 0){
+							ratingsMedian[0].push(result[0][j]);
+							ratingsMedian[1].push(result[1][j]);
+							ratingsMedian[2].push(result[1][j]);
+							ratingsMedian[3].push(result[1][j]);
+						}
+						else{
+							ratingsMedian[1][j] += result[1][j];
+							
+							var currentValue = result[1][j];
+							var currentMin = ratingsMedian[2][j];
+							var currentMax = ratingsMedian[3][j];
+														
+							if(currentValue < currentMin && currentValue > 0) ratingsMedian[2][j] = currentValue; //Set the min
+							if(currentValue > currentMax && currentValue > 0) ratingsMedian[3][j] = currentValue; //Set the max
+						}
+						
+						
+						clearTimeout(populateResults);
+						populateResults = setTimeout(function(){ PopulateEmailResults(ratingsMedian, files, target); }, 500);
+					}
+					counter++;
+				};
+			})(files[i]);
+			
+			reader.readAsText(files[i]);
+		}
+    });
+	
+    function PopulateEmailResults(ratingsMedian, files, target) {
+		$(target + "Ratings").empty();
+		
+		//Get the median for each test and populate the view with the results
+		for(var i = 0; i < ratingsMedian[0].length; i++){
+			ratingsMedian[1][i] = (ratingsMedian[1][i]/files.length).toFixed(2); 
+			$(target + "Ratings").append('<span style="font-weight: normal" class="m-0 badge badge-secondary">' + ratingsMedian[0][i] + ': ' + ratingsMedian[1][i] + " <span style='font-weight: normal' class='badge badge-warning'> min: " + ratingsMedian[2][i].toFixed(2) + "</span> <span style='font-weight: normal' class='badge badge-info'>max: " + ratingsMedian[3][i].toFixed(2) +'</span></span><br/>');
+		}
+		
+		var spamArea = "";
+		for(var i = 0; i < spamKeywords.length; i++){
+			spamArea += '"' + spamKeywords[i] + '",';
+		}
+		$("#SpamKeywordsArea").text(spamArea);
+		
+		var hamArea = "";
+		for(var i = 0; i < hamKeywords.length; i++){
+			hamArea += '"' + hamKeywords[i] + '",';
+		}
+		$("#HamKeywordsArea").text(hamArea);
+		
+		var fileNames = $.map(files, function (val) { return val.name; });
+		var badgeColor = "info";
+		if (target === "#SpamEmails") { badgeColor = "warning"; }
+		
+		$(target).empty();
+		if (fileNames.length < 1) {
+			$(target).append('<h4>Drag files here or click to browse</h4>');
+		}
+		else if (fileNames.length > 0 && fileNames.length < 13) {
+			$.each(fileNames, function (index, value) {
+				$(target).append('<span style="margin: 1px;font-size:12px;font-weight: normal" class="badge badge-' + badgeColor + '">' + value + "</span>");
+			});
+		}
+		else{
+			$(target).append('<h4>'+fileNames.length+'files chosen</h4>');
+			}
+    }
+	
+	var loadingImage = 'data:image/svg+xml;base64,PHN2ZyBjbGFzcz0ibGRzLXNwaW5uZXIiIHdpZHRoPSIyMDBweCIgIGhlaWdodD0iMjAwcHgiICB4%0D%0AbWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3%0D%0ALnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgcHJlc2VydmVBc3BlY3RS%0D%0AYXRpbz0ieE1pZFlNaWQiIHN0eWxlPSJiYWNrZ3JvdW5kOiBub25lOyI+PGcgdHJhbnNmb3JtPSJy%0D%0Ab3RhdGUoMCA1MCA1MCkiPgogIDxyZWN0IHg9IjQ3IiB5PSIyNCIgcng9IjkuNCIgcnk9IjQuOCIg%0D%0Ad2lkdGg9IjYiIGhlaWdodD0iMTIiIGZpbGw9IiMzZjQ2NjUiPgogICAgPGFuaW1hdGUgYXR0cmli%0D%0AdXRlTmFtZT0ib3BhY2l0eSIgdmFsdWVzPSIxOzAiIGtleVRpbWVzPSIwOzEiIGR1cj0iMXMiIGJl%0D%0AZ2luPSItMC45MTY2NjY2NjY2NjY2NjY2cyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiPjwvYW5p%0D%0AbWF0ZT4KICA8L3JlY3Q+CjwvZz48ZyB0cmFuc2Zvcm09InJvdGF0ZSgzMCA1MCA1MCkiPgogIDxy%0D%0AZWN0IHg9IjQ3IiB5PSIyNCIgcng9IjkuNCIgcnk9IjQuOCIgd2lkdGg9IjYiIGhlaWdodD0iMTIi%0D%0AIGZpbGw9IiMzZjQ2NjUiPgogICAgPGFuaW1hdGUgYXR0cmlidXRlTmFtZT0ib3BhY2l0eSIgdmFs%0D%0AdWVzPSIxOzAiIGtleVRpbWVzPSIwOzEiIGR1cj0iMXMiIGJlZ2luPSItMC44MzMzMzMzMzMzMzMz%0D%0AMzM0cyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiPjwvYW5pbWF0ZT4KICA8L3JlY3Q+CjwvZz48%0D%0AZyB0cmFuc2Zvcm09InJvdGF0ZSg2MCA1MCA1MCkiPgogIDxyZWN0IHg9IjQ3IiB5PSIyNCIgcng9%0D%0AIjkuNCIgcnk9IjQuOCIgd2lkdGg9IjYiIGhlaWdodD0iMTIiIGZpbGw9IiMzZjQ2NjUiPgogICAg%0D%0APGFuaW1hdGUgYXR0cmlidXRlTmFtZT0ib3BhY2l0eSIgdmFsdWVzPSIxOzAiIGtleVRpbWVzPSIw%0D%0AOzEiIGR1cj0iMXMiIGJlZ2luPSItMC43NXMiIHJlcGVhdENvdW50PSJpbmRlZmluaXRlIj48L2Fu%0D%0AaW1hdGU+CiAgPC9yZWN0Pgo8L2c+PGcgdHJhbnNmb3JtPSJyb3RhdGUoOTAgNTAgNTApIj4KICA8%0D%0AcmVjdCB4PSI0NyIgeT0iMjQiIHJ4PSI5LjQiIHJ5PSI0LjgiIHdpZHRoPSI2IiBoZWlnaHQ9IjEy%0D%0AIiBmaWxsPSIjM2Y0NjY1Ij4KICAgIDxhbmltYXRlIGF0dHJpYnV0ZU5hbWU9Im9wYWNpdHkiIHZh%0D%0AbHVlcz0iMTswIiBrZXlUaW1lcz0iMDsxIiBkdXI9IjFzIiBiZWdpbj0iLTAuNjY2NjY2NjY2NjY2%0D%0ANjY2NnMiIHJlcGVhdENvdW50PSJpbmRlZmluaXRlIj48L2FuaW1hdGU+CiAgPC9yZWN0Pgo8L2c+%0D%0APGcgdHJhbnNmb3JtPSJyb3RhdGUoMTIwIDUwIDUwKSI+CiAgPHJlY3QgeD0iNDciIHk9IjI0IiBy%0D%0AeD0iOS40IiByeT0iNC44IiB3aWR0aD0iNiIgaGVpZ2h0PSIxMiIgZmlsbD0iIzNmNDY2NSI+CiAg%0D%0AICA8YW5pbWF0ZSBhdHRyaWJ1dGVOYW1lPSJvcGFjaXR5IiB2YWx1ZXM9IjE7MCIga2V5VGltZXM9%0D%0AIjA7MSIgZHVyPSIxcyIgYmVnaW49Ii0wLjU4MzMzMzMzMzMzMzMzMzRzIiByZXBlYXRDb3VudD0i%0D%0AaW5kZWZpbml0ZSI+PC9hbmltYXRlPgogIDwvcmVjdD4KPC9nPjxnIHRyYW5zZm9ybT0icm90YXRl%0D%0AKDE1MCA1MCA1MCkiPgogIDxyZWN0IHg9IjQ3IiB5PSIyNCIgcng9IjkuNCIgcnk9IjQuOCIgd2lk%0D%0AdGg9IjYiIGhlaWdodD0iMTIiIGZpbGw9IiMzZjQ2NjUiPgogICAgPGFuaW1hdGUgYXR0cmlidXRl%0D%0ATmFtZT0ib3BhY2l0eSIgdmFsdWVzPSIxOzAiIGtleVRpbWVzPSIwOzEiIGR1cj0iMXMiIGJlZ2lu%0D%0APSItMC41cyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiPjwvYW5pbWF0ZT4KICA8L3JlY3Q+Cjwv%0D%0AZz48ZyB0cmFuc2Zvcm09InJvdGF0ZSgxODAgNTAgNTApIj4KICA8cmVjdCB4PSI0NyIgeT0iMjQi%0D%0AIHJ4PSI5LjQiIHJ5PSI0LjgiIHdpZHRoPSI2IiBoZWlnaHQ9IjEyIiBmaWxsPSIjM2Y0NjY1Ij4K%0D%0AICAgIDxhbmltYXRlIGF0dHJpYnV0ZU5hbWU9Im9wYWNpdHkiIHZhbHVlcz0iMTswIiBrZXlUaW1l%0D%0Acz0iMDsxIiBkdXI9IjFzIiBiZWdpbj0iLTAuNDE2NjY2NjY2NjY2NjY2N3MiIHJlcGVhdENvdW50%0D%0APSJpbmRlZmluaXRlIj48L2FuaW1hdGU+CiAgPC9yZWN0Pgo8L2c+PGcgdHJhbnNmb3JtPSJyb3Rh%0D%0AdGUoMjEwIDUwIDUwKSI+CiAgPHJlY3QgeD0iNDciIHk9IjI0IiByeD0iOS40IiByeT0iNC44IiB3%0D%0AaWR0aD0iNiIgaGVpZ2h0PSIxMiIgZmlsbD0iIzNmNDY2NSI+CiAgICA8YW5pbWF0ZSBhdHRyaWJ1%0D%0AdGVOYW1lPSJvcGFjaXR5IiB2YWx1ZXM9IjE7MCIga2V5VGltZXM9IjA7MSIgZHVyPSIxcyIgYmVn%0D%0AaW49Ii0wLjMzMzMzMzMzMzMzMzMzMzNzIiByZXBlYXRDb3VudD0iaW5kZWZpbml0ZSI+PC9hbmlt%0D%0AYXRlPgogIDwvcmVjdD4KPC9nPjxnIHRyYW5zZm9ybT0icm90YXRlKDI0MCA1MCA1MCkiPgogIDxy%0D%0AZWN0IHg9IjQ3IiB5PSIyNCIgcng9IjkuNCIgcnk9IjQuOCIgd2lkdGg9IjYiIGhlaWdodD0iMTIi%0D%0AIGZpbGw9IiMzZjQ2NjUiPgogICAgPGFuaW1hdGUgYXR0cmlidXRlTmFtZT0ib3BhY2l0eSIgdmFs%0D%0AdWVzPSIxOzAiIGtleVRpbWVzPSIwOzEiIGR1cj0iMXMiIGJlZ2luPSItMC4yNXMiIHJlcGVhdENv%0D%0AdW50PSJpbmRlZmluaXRlIj48L2FuaW1hdGU+CiAgPC9yZWN0Pgo8L2c+PGcgdHJhbnNmb3JtPSJy%0D%0Ab3RhdGUoMjcwIDUwIDUwKSI+CiAgPHJlY3QgeD0iNDciIHk9IjI0IiByeD0iOS40IiByeT0iNC44%0D%0AIiB3aWR0aD0iNiIgaGVpZ2h0PSIxMiIgZmlsbD0iIzNmNDY2NSI+CiAgICA8YW5pbWF0ZSBhdHRy%0D%0AaWJ1dGVOYW1lPSJvcGFjaXR5IiB2YWx1ZXM9IjE7MCIga2V5VGltZXM9IjA7MSIgZHVyPSIxcyIg%0D%0AYmVnaW49Ii0wLjE2NjY2NjY2NjY2NjY2NjY2cyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiPjwv%0D%0AYW5pbWF0ZT4KICA8L3JlY3Q+CjwvZz48ZyB0cmFuc2Zvcm09InJvdGF0ZSgzMDAgNTAgNTApIj4K%0D%0AICA8cmVjdCB4PSI0NyIgeT0iMjQiIHJ4PSI5LjQiIHJ5PSI0LjgiIHdpZHRoPSI2IiBoZWlnaHQ9%0D%0AIjEyIiBmaWxsPSIjM2Y0NjY1Ij4KICAgIDxhbmltYXRlIGF0dHJpYnV0ZU5hbWU9Im9wYWNpdHki%0D%0AIHZhbHVlcz0iMTswIiBrZXlUaW1lcz0iMDsxIiBkdXI9IjFzIiBiZWdpbj0iLTAuMDgzMzMzMzMz%0D%0AMzMzMzMzMzNzIiByZXBlYXRDb3VudD0iaW5kZWZpbml0ZSI+PC9hbmltYXRlPgogIDwvcmVjdD4K%0D%0APC9nPjxnIHRyYW5zZm9ybT0icm90YXRlKDMzMCA1MCA1MCkiPgogIDxyZWN0IHg9IjQ3IiB5PSIy%0D%0ANCIgcng9IjkuNCIgcnk9IjQuOCIgd2lkdGg9IjYiIGhlaWdodD0iMTIiIGZpbGw9IiMzZjQ2NjUi%0D%0APgogICAgPGFuaW1hdGUgYXR0cmlidXRlTmFtZT0ib3BhY2l0eSIgdmFsdWVzPSIxOzAiIGtleVRp%0D%0AbWVzPSIwOzEiIGR1cj0iMXMiIGJlZ2luPSIwcyIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiPjwv%0D%0AYW5pbWF0ZT4KICA8L3JlY3Q+CjwvZz48L3N2Zz4=';
+  });
+</script>
